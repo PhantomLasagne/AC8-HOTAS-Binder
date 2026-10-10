@@ -1,6 +1,6 @@
 AC8 HOTAS Binder 1.0.0
 ======================
-by Ph4ntomLasagne  (Nexus: Ph4ntomLasagne, GitHub: PhantomLasagne)
+by PhantomLasagne  (GitHub: PhantomLasagne, Nexus Mods: Ph4ntomLasagne)
 
 A point-and-press binding editor for the AC8HOTAS mod for Ace Combat 8.
 
@@ -145,11 +145,11 @@ Huge thanks to Drumsmasher17 for the mods and for releasing them under CC0.
 
 LICENSE
 -------
-MIT License. Copyright (c) 2026 Ph4ntomLasagne. See LICENSE.txt.
+MIT License. Copyright (c) 2026 PhantomLasagne. See LICENSE.txt.
 
 Fully open source: use it, modify it, fork it, bundle it or re-upload it, as long
-as you keep the copyright notice and LICENSE.txt and credit Ph4ntomLasagne
-(Nexus) / PhantomLasagne (GitHub) as the original author.
+as you keep the copyright notice and LICENSE.txt and credit PhantomLasagne
+(GitHub) / Ph4ntomLasagne (Nexus Mods) as the original author.
 This tool was developed with AI assistance and is provided without warranty.
 This is an unofficial companion tool, not made or endorsed by the authors above.
 Bug reports and suggestions: the AC8 HOTAS Binder page on Nexus Mods (Ph4ntomLasagne),

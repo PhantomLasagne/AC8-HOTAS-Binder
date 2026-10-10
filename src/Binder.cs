@@ -1,5 +1,5 @@
 // AC8 HOTAS Binder - point-and-press binding editor for the AC8HOTAS mod.
-// Copyright (c) 2026 Ph4ntomLasagne (GitHub: PhantomLasagne)
+// Copyright (c) 2026 PhantomLasagne (Nexus Mods: Ph4ntomLasagne)
 // SPDX-License-Identifier: MIT. See LICENSE.txt; keep this notice in copies and derivatives.
 //
 // Reads controller input directly through the Windows HID API (read-only; it never
@@ -26,8 +26,8 @@ using Microsoft.Win32.SafeHandles;
 [assembly: AssemblyTitle("AC8 HOTAS Binder")]
 [assembly: AssemblyDescription("Point-and-press binding editor for the AC8HOTAS mod")]
 [assembly: AssemblyProduct("AC8 HOTAS Binder")]
-[assembly: AssemblyCompany("Ph4ntomLasagne")]
-[assembly: AssemblyCopyright("Copyright (c) 2026 Ph4ntomLasagne. MIT License.")]
+[assembly: AssemblyCompany("PhantomLasagne")]
+[assembly: AssemblyCopyright("Copyright (c) 2026 PhantomLasagne. MIT License.")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
 
@@ -1725,7 +1725,7 @@ namespace AC8HotasBinder
             Link("https://github.com/Drumsmasher17/AC8AnalogueYaw");
             Link("https://github.com/UE4SS-RE/RE-UE4SS");
             Para("");
-            Run("AC8 HOTAS Binder " + Program.Version + " by Ph4ntomLasagne (GitHub: PhantomLasagne) · MIT License · unofficial companion tool", note, Theme.Dim);
+            Run("AC8 HOTAS Binder " + Program.Version + " by PhantomLasagne (Ph4ntomLasagne on Nexus) · MIT License · unofficial companion tool", note, Theme.Dim);
             box.SelectionStart = 0;
         }
 

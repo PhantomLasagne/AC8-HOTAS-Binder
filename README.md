@@ -68,4 +68,4 @@ This is an unofficial companion tool, not made or endorsed by the authors above.
 
 ## License
 
-[MIT](LICENSE.txt) © 2026 Ph4ntomLasagne. Use it, fork it or bundle it freely; just keep the copyright notice and credit **Ph4ntomLasagne** as the original author. Developed with AI assistance; provided without warranty.
+[MIT](LICENSE.txt) © 2026 PhantomLasagne. Use it, fork it or bundle it freely; just keep the copyright notice and credit **PhantomLasagne** (Ph4ntomLasagne on Nexus Mods) as the original author. Developed with AI assistance; provided without warranty.
