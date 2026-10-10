@@ -1,0 +1,4 @@
+# Build output: release binaries go on GitHub Releases / Nexus, not in git
+*.exe
+*.pdb
+dist/
