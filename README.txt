@@ -56,6 +56,10 @@ Changing bindings with the game running
   the saved file.
 
 Tips
+- The "KB / Mouse" and "Controller" columns show the game's own default
+  controls (Expert mode) for reference, so you can see what each action does
+  on a keyboard or pad before giving it a HOTAS control. Hover a cell for the
+  in-game name. "-" means the game's controls menu doesn't list it.
 - One control can drive several actions, e.g. the same hat for Look and the
   menu D-pad. The "Also used by" column shows any sharing.
 - Buttons that are already held down when you start listening are ignored, so

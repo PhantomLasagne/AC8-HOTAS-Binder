@@ -63,6 +63,8 @@ namespace AC8HotasBinder
     {
         public string Name, Group, Hint, Prompt;
         public bool IsAxis, Optional;
+        // The game's own defaults, for reference: keyboard & mouse, controller (Expert), and a tooltip note.
+        public string Keys, Pad, DefaultsNote;
 
         public const string OptionalGroup = "OPTIONAL & UNTESTED";
         public static readonly List<ActionDef> All = Build();
@@ -74,7 +76,7 @@ namespace AC8HotasBinder
             string g = "WEAPONS & SYSTEMS";
             B(l, g, "Gun", "Fire gun");
             B(l, g, "Missile", "Fire missile");
-            B(l, g, "Weapon", "Special weapon");
+            B(l, g, "Weapon", "Change weapon (missiles / special)");
             B(l, g, "Target", "Switch target");
             B(l, g, "Radar", "Radar / map");
             B(l, g, "Flare", "Flares");
@@ -123,7 +125,55 @@ namespace AC8HotasBinder
             B(l, g, "OnlineLobbyAvatarDash", "Online lobby: dash");
             B(l, g, "OnlineLobbyAvatarJump", "Online lobby: jump");
             foreach (var a in l) a.Optional = a.Group == OptionalGroup;
+            Defaults(l);
             return l;
+        }
+
+        // From the game's KEY BINDINGS and BUTTON MAPPING screens. Controls those screens don't
+        // list stay null; rows named after a pad button show that button.
+        static void Defaults(List<ActionDef> l)
+        {
+            var by = l.ToDictionary(a => a.Name);
+            Action<string, string, string, string> d = (n, keys, pad, note) => { var a = by[n]; a.Keys = keys; a.Pad = pad; a.DefaultsNote = note; };
+            d("Gun", "LMB / J", "A / Cross", "In game: Fire machine gun.");
+            d("Missile", "RMB / L", "B / Circle", "In game: Fire missile or weapon.");
+            d("Weapon", "Wheel ↓ / K", "X / Square", "In game: Change weapon / Next weapon. Previous weapon is wheel ↑ / I; keys 1, 2 and 3 pick standard missiles or a special weapon directly.");
+            d("Target", "T / MMB", "Y / Triangle", "In game: Change target. MMB is the mouse wheel click.");
+            d("Radar", "M", "View / Share", "In game: Switch radar map.");
+            d("Flare", "X", null, "In game: Deploy flares.");
+            d("View", "V", null, "In game: Change view.");
+            d("Gear", "R", null, "In game: Gear down / Gear up.");
+            d("AccelDecel", "Space + L-Ctrl", "RT + LT / R2 + L2", "Accelerate and Decelerate pressed together.");
+            d("Pitch", "W / S", null, "In game: W is Descend / Pitch down, S is Ascend / Pitch up.");
+            d("Roll", "A / D", null, "In game: Turn left / Roll left, Turn right / Roll right.");
+            d("Yaw", "Q / E", "LB / RB · L1 / R1", "In game: Yaw left / Yaw right.");
+            d("Throttle", "Space / L-Ctrl", "RT / LT · R2 / L2", "In game: Accelerate / Decelerate.");
+            d("HatUp", "7 / Num 8", null, "In game: Camera up.");
+            d("HatDown", "8 / Num 2", null, "In game: Camera down.");
+            d("HatLeft", "9 / Num 4", null, "In game: Camera left.");
+            d("HatRight", "0 / Num 6", null, "In game: Camera right.");
+            d("CameraPitch", "Mouse (F)", null, "In game: Camera control (mouse) is on F.");
+            d("CameraYaw", "Mouse (F)", null, "In game: Camera control (mouse) is on F.");
+            d("FaceButtonBottom", null, "A / Cross", null);
+            d("FaceButtonRight", null, "B / Circle", null);
+            d("FaceButtonLeft", null, "X / Square", null);
+            d("FaceButtonTop", null, "Y / Triangle", null);
+            d("DPadUp", "↑", "D-pad ↑", "The game lists ↑ as Order: Forward attack.");
+            d("DPadDown", "↓", "D-pad ↓", "The game lists ↓ as Order: Cover.");
+            d("DPadLeft", "←", "D-pad ←", "The game lists ← as Order: Disp. atk.");
+            d("DPadRight", "→", "D-pad →", "The game lists → as Order: SP weapons on/off.");
+            d("Pause", "Esc", "Menu / Options", null);
+            d("SpecialRight", "Hold Esc", "Menu / Options", "Hold to skip cutscenes and prompts.");
+            d("AutoPilot", "Z / C", null, "In game: Autopilot.");
+            d("Platform", null, "Guide / PS", null);
+            d("LeftShoulder", null, "LB / L1", null);
+            d("RightShoulder", null, "RB / R1", null);
+            d("LeftTrigger", null, "LT / L2", null);
+            d("RightTrigger", null, "RT / R2", null);
+            d("LeftThumbstick", null, "LS click / L3", null);
+            d("RightThumbstick", null, "RS click / R3", null);
+            d("SpecialLeft", null, "View / Share", null);
+            d("TouchPad", null, "Touchpad", null);
         }
 
         static void B(List<ActionDef> l, string g, string n, string hint)
@@ -740,7 +790,7 @@ namespace AC8HotasBinder
 
     class MainForm : Form
     {
-        const int ColAction = 0, ColHint = 1, ColBinding = 2, ColDirection = 3, ColShared = 4, ColClear = 5;
+        const int ColAction = 0, ColHint = 1, ColKeys = 2, ColPad = 3, ColBinding = 4, ColDirection = 5, ColShared = 6, ColClear = 7;
         const double AxisThreshold = 0.35;
         static readonly UTF8Encoding Utf8NoBom = new UTF8Encoding(false);
 
@@ -902,11 +952,15 @@ namespace AC8HotasBinder
             };
             grid.RowTemplate.Height = S(30);
             AddColumn("ACTION", 150, false);
-            AddColumn("WHAT IT DOES", 250, false);
+            AddColumn("WHAT IT DOES", 180, false);
+            AddColumn("KB / MOUSE", 110, false);
+            AddColumn("CONTROLLER", 125, false);
             AddColumn("BINDING", 0, true);
             AddColumn("DIRECTION", 92, false);
-            AddColumn("ALSO USED BY", 150, false);
+            AddColumn("ALSO USED BY", 110, false);
             AddColumn("", 64, false);
+            grid.Columns[ColKeys].ToolTipText = "The game's default keyboard & mouse controls, for reference.";
+            grid.Columns[ColPad].ToolTipText = "The game's default controller buttons (Expert controls), for reference.";
             grid.CellClick += GridCellClick;
             grid.CellMouseEnter += (s, e) =>
             {
@@ -916,6 +970,7 @@ namespace AC8HotasBinder
             };
             grid.CellMouseLeave += (s, e) => { if (dragCol < 0) grid.Cursor = Cursors.Default; };
             grid.CellPainting += PaintHeader;
+            grid.RowPostPaint += PaintGroupRow;
             grid.MouseDown += GridMouseDown;
             grid.MouseMove += GridMouseMove;
             grid.MouseUp += (s, e) => EndColumnDrag();
@@ -1033,6 +1088,13 @@ namespace AC8HotasBinder
 
         void PaintHeader(object sender, DataGridViewCellPaintingEventArgs e)
         {
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && !(grid.Rows[e.RowIndex].Tag is ActionDef))
+            {
+                // Group rows: background only; PaintGroupRow draws the label across the row.
+                e.PaintBackground(e.CellBounds, false);
+                e.Handled = true;
+                return;
+            }
             if (e.RowIndex != -1 || e.ColumnIndex < 0) return;
             e.PaintBackground(e.CellBounds, false);
             e.PaintContent(e.CellBounds);
@@ -1048,6 +1110,21 @@ namespace AC8HotasBinder
             e.Handled = true;
         }
 
+        // Group labels span the row instead of being clipped to the first columns.
+        void PaintGroupRow(object sender, DataGridViewRowPostPaintEventArgs e)
+        {
+            var r = grid.Rows[e.RowIndex];
+            if (r.Tag is ActionDef) return;
+            var flags = TextFormatFlags.Bottom | TextFormatFlags.Left | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis;
+            var bounds = new Rectangle(e.RowBounds.Left + S(8), e.RowBounds.Top, e.RowBounds.Width - S(16), e.RowBounds.Height - S(4));
+            string label = r.Cells[ColAction].Value as string ?? "", extra = r.Cells[ColHint].Value as string;
+            TextRenderer.DrawText(e.Graphics, label, groupFont, bounds, Theme.Accent, flags);
+            if (string.IsNullOrEmpty(extra)) return;
+            int x = Math.Max(grid.GetColumnDisplayRectangle(ColHint, false).Left + S(8),
+                bounds.Left + TextRenderer.MeasureText(e.Graphics, label, groupFont, bounds.Size, flags).Width + S(24));
+            TextRenderer.DrawText(e.Graphics, extra, groupFont, new Rectangle(x, bounds.Top, Math.Max(0, bounds.Right - x), bounds.Height), Theme.Accent, flags);
+        }
+
         void BuildRows()
         {
             grid.Rows.Clear();
@@ -1059,7 +1136,7 @@ namespace AC8HotasBinder
                 if (def.Group != group)
                 {
                     group = def.Group;
-                    int hi = grid.Rows.Add(group, "", "", "", "", "");
+                    int hi = grid.Rows.Add(group, "", "", "", "", "", "", "");
                     var hr = grid.Rows[hi];
                     hr.Height = S(34);
                     hr.DefaultCellStyle = new DataGridViewCellStyle
@@ -1069,16 +1146,23 @@ namespace AC8HotasBinder
                     };
                     if (group == ActionDef.OptionalGroup) optionalHeader = hr;
                 }
-                int i = grid.Rows.Add(def.Name, def.Hint, "", "", "", "");
+                int i = grid.Rows.Add(def.Name, def.Hint, def.Keys ?? "–", def.Pad ?? "–", "", "", "", "");
                 var r = grid.Rows[i];
                 r.Tag = def;
                 rows[def.Name] = r;
-                r.Cells[ColHint].Style.ForeColor = Theme.Dim;
-                r.Cells[ColHint].Style.SelectionForeColor = Theme.Dim;
+                foreach (int c in new[] { ColHint, ColKeys, ColPad }) r.Cells[c].Style.ForeColor = r.Cells[c].Style.SelectionForeColor = Theme.Dim;
+                r.Cells[ColKeys].ToolTipText = DefaultTip("Keyboard & mouse", def.Keys, def.DefaultsNote);
+                r.Cells[ColPad].ToolTipText = DefaultTip("Controller", def.Pad, def.DefaultsNote);
                 r.Cells[ColAction].Style.Font = bold;
                 if (def.Optional) { optionalRows.Add(r); r.Visible = optionalOpen; }
             }
             UpdateOptionalHeader();
+        }
+
+        static string DefaultTip(string what, string value, string note)
+        {
+            if (value == null) return what + ": not listed in the game's controls menu.";
+            return what + " default: " + value + (note != null ? "\n" + note : "");
         }
 
         void UpdateOptionalHeader()
@@ -1712,6 +1796,7 @@ namespace AC8HotasBinder
                  "If a change doesn't seem to take effect, restart the game. Starting the game always loads the saved file.");
 
             Heading("Good to know");
+            Bullet(null, "The KB / Mouse and Controller columns show the game's own default controls (Expert mode), so you can see what each action does before giving it a HOTAS control. Hover a cell for the in-game name.");
             Bullet(null, "One control can drive several actions, e.g. the same hat for Look and the menu D-pad. The \"Also used by\" column shows sharing.");
             Bullet(null, "Buttons already held down when you start listening are ignored, so switches resting \"on\" won't hijack a binding.");
             Bullet(null, "Drag the grips between column headers to resize columns.");
@@ -1824,6 +1909,7 @@ namespace AC8HotasBinder
                     else log.AppendLine("  " + a.Name + " (missing)");
                 }
                 check(ActionDef.All.Count == 49, "49 actions defined");
+                check(ActionDef.All.Count(x => x.Keys != null) == 26 && ActionDef.All.Count(x => x.Pad != null) == 27, "game defaults loaded (26 keyboard, 27 controller)");
 
                 check(BindingsDoc.Apply(text, new Dictionary<string, Binding>(), b => "x") == text, "no-op apply preserves file exactly");
 
