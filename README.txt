@@ -1,4 +1,4 @@
-AC8 HOTAS Binder 1.0.0
+AC8 HOTAS Binder 1.0.1
 ======================
 by PhantomLasagne  (GitHub: PhantomLasagne, Nexus Mods: Ph4ntomLasagne)
 

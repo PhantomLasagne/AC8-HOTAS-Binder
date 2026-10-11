@@ -28,14 +28,14 @@ using Microsoft.Win32.SafeHandles;
 [assembly: AssemblyProduct("AC8 HOTAS Binder")]
 [assembly: AssemblyCompany("PhantomLasagne")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 PhantomLasagne. MIT License.")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.0.1.0")]
+[assembly: AssemblyFileVersion("1.0.1.0")]
 
 namespace AC8HotasBinder
 {
     static class Program
     {
-        public const string Version = "1.0.0";
+        public const string Version = "1.0.1";
 
         [STAThread]
         static int Main(string[] args)
@@ -76,7 +76,7 @@ namespace AC8HotasBinder
             string g = "WEAPONS & SYSTEMS";
             B(l, g, "Gun", "Fire gun");
             B(l, g, "Missile", "Fire missile");
-            B(l, g, "Weapon", "Change weapon (missiles / special)");
+            B(l, g, "Weapon", "Change weapon");
             B(l, g, "Target", "Switch target");
             B(l, g, "Radar", "Radar / map");
             B(l, g, "Flare", "Flares");
