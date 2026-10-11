@@ -14,6 +14,7 @@ AC8HOTAS is configured by editing `bindings.lua` by hand: device GUIDs, button n
 
 - **Click an action, press the control.** Buttons, hat directions and axes are detected live.
 - **Guided axes.** "Push the stick FORWARD", "Throttle IDLE to FULL"... The way you move it sets Normal/Inverted automatically.
+- **See the game's own controls.** Each action shows its default keyboard/mouse and controller binding (Expert mode), so you know what it does before you give it a HOTAS control.
 - **Safe edits.** Only the lines you change are rewritten. Comments and AC8HOTAS's generated device list are untouched, and every save keeps a backup (`bindings.lua.binder.bak`).
 - **Always know what's saved.** Unsaved changes are marked on each row and counted on the Save button.
 - **Any HID game controller.** Several devices at once. Developed and tested on VKB gear (Gladiator EVO R, S-TECS throttle, T-Rudder).
