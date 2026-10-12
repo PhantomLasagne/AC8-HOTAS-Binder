@@ -96,6 +96,32 @@ LIMITS (from AC8HOTAS itself)
   its vendor software can be bound to the Look (Hat) actions instead.
 
 
+HEAD TRACKING (OPENTRACK)
+-------------------------
+The camera axes accept any controller the game can see, including a virtual
+joystick. That means opentrack can drive the camera from your head, with a
+webcam, phone app or IR clip. AC8's camera returns to centre when the stick
+does, so your head position sets the look angle. Only left/right and up/down
+are available; the game has no lean or zoom axis.
+
+1. Install vJoy 2.2.x (github.com/BrunnerInnovation/vJoy).
+2. opentrack bundles an older vJoyInterface.dll (2.1.x). It can claim the
+   device but won't move the axes with the 2.2 driver. Close opentrack, then
+   copy C:\Program Files\vJoy\x64\vJoyInterface.dll over the one in
+   opentrack's "modules" folder (keep a backup of the original).
+3. In opentrack, set Output to "Joystick emulation (vjoystick)". Head yaw
+   goes to vJoy Rx and pitch to Ry. Click Start.
+4. Launch the game once so vJoy is added to the game's list, then quit.
+5. In the binder, bind "Camera left / right" and "Camera up / down" by turning
+   your head right and looking up when prompted. Save.
+
+Each time you fly: start tracking in opentrack before the game, look straight
+ahead and press opentrack's centre key. If the camera sits stuck to one side,
+opentrack has stopped tracking; vJoy holds its last position until it resumes.
+Tune sensitivity with opentrack's yaw and pitch curves. Camera actions take one
+control each, so this replaces any stick you had on the camera.
+
+
 TROUBLESHOOTING
 ---------------
 "Windows protected your PC" (SmartScreen)

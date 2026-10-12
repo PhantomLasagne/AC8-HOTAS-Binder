@@ -35,6 +35,10 @@ Requires [AC8 HOTAS Support](https://www.nexusmods.com/acecombat8wingsoftheve/mo
 
 Full user documentation: [README.txt](README.txt), which is also included in the download.
 
+### Head tracking
+
+The camera axes work with [opentrack](https://github.com/opentrack/opentrack) through a [vJoy](https://github.com/BrunnerInnovation/vJoy) virtual joystick: bind *Camera left / right* and *Camera up / down* to vJoy's Rx and Ry by turning your head. With vJoy 2.2, replace opentrack's bundled `vJoyInterface.dll` with vJoy's own, or the axes won't move. Step-by-step setup is in [README.txt](README.txt) under "Head tracking".
+
 ## Building
 
 The whole app is one C# 5 file, `src/Binder.cs`, built with the `csc.exe` that ships with Windows (.NET Framework 4.x). No SDK or Visual Studio needed.
