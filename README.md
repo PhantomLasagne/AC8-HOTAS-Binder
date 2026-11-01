@@ -17,6 +17,7 @@ AC8HOTAS is configured by editing `bindings.lua` by hand: device GUIDs, button n
 - **See the game's own controls.** Each action shows its default keyboard/mouse and controller binding (Expert mode), so you know what it does before you give it a HOTAS control.
 - **Safe edits.** Only the lines you change are rewritten. Comments and AC8HOTAS's generated device list are untouched, and every save keeps a backup (`bindings.lua.binder.bak`).
 - **Always know what's saved.** Unsaved changes are marked on each row and counted on the Save button.
+- **English and Simplified Chinese.** Switch language from the drop-down in the footer; the choice is remembered and unsaved edits are kept. Text lives in editable `languages/*.json` files next to the program, and dropping in another file adds a language without rebuilding the exe.
 - **Any HID game controller.** Several devices at once. Developed and tested on VKB gear (Gladiator EVO R, S-TECS throttle, T-Rudder).
 - **Read-only on your hardware.** It never changes controller settings or sends input to the game.
 
@@ -61,7 +62,7 @@ The self-test (`AC8-HOTAS-Binder.exe --selftest "<AC8HOTAS folder>" "<report.txt
 ### How it works
 
 - **Input:** reads controllers directly through the Windows HID API (`hid.dll`, read-only). It maps HID usages to the DirectInput names AC8HOTAS uses (`Button1..128`, `X/Y/Z/Rx/Ry/Rz/Slider1/Slider2`, `POV1_*`).
-- **Devices:** matches controllers to the game's device GUIDs by product ID, using the catalog AC8HOTAS writes to `Scripts/devices.lua`.
+- **Devices:** matches controllers to the game's device GUIDs by HID path (so two collections sharing one product ID stay distinct), falling back to product ID when the path isn't listed.
 - **Editing:** edits `bindings.lua` line by line instead of regenerating it, then re-parses the result before writing.
 
 ## Credits

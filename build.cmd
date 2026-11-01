@@ -10,7 +10,7 @@ if not exist "%CSC%" (
 )
 "%CSC%" /nologo /target:winexe /platform:anycpu /optimize+ ^
     /win32icon:"%~dp0src\icon.ico" /win32manifest:"%~dp0src\app.manifest" ^
-    /r:System.Windows.Forms.dll /r:System.Drawing.dll ^
+    /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll ^
     /out:"%~dp0AC8-HOTAS-Binder.exe" "%~dp0src\Binder.cs"
 if errorlevel 1 exit /b 1
 echo Built %~dp0AC8-HOTAS-Binder.exe

@@ -1,4 +1,4 @@
-AC8 HOTAS Binder 1.0.1
+AC8 HOTAS Binder 1.1.3
 ======================
 by PhantomLasagne  (GitHub: PhantomLasagne, Nexus Mods: Ph4ntomLasagne)
 
@@ -72,6 +72,48 @@ Tips
   "Optional & untested" group at the bottom.
 
 
+LANGUAGE
+--------
+The interface is available in English and Simplified Chinese. Use the
+language menu in the footer to switch; the window rebuilds immediately and
+unsaved changes are kept. The first launch follows the Windows display
+language. Action names written to bindings.lua always stay in English,
+because the game expects those exact names.
+
+English and Simplified Chinese are built into the program, but the text is
+editable from the "languages" folder next to the program:
+
+- languages\zh-CN.json: the Simplified Chinese translation.
+- Add another <code>.json there to add a language; it appears in the menu.
+
+A language file is JSON (UTF-8; UTF-16 and ANSI also load). "code" is saved
+to language.txt, "name" is shown in the menu, "font" lists fonts to try in
+order, and "separator" is used when several action names are listed:
+
+    {
+      "code": "ja-JP",
+      "name": "日本語",
+      "font": "Yu Gothic UI, Meiryo",
+      "separator": "、",
+      "ui": {
+        "Save bindings": "保存"
+      },
+      "actions": {
+        "Gun": "機銃"
+      }
+    }
+
+The keys under "ui" are the English interface texts; the keys under
+"actions" are the names from bindings.lua (Gun, Pitch, Missile, ...). Leave
+out any string you haven't translated and it falls back to English. Use the
+usual JSON escapes (\n for a line break, \" for a quote, \\ for a
+backslash). Changes are read the next time the program starts.
+
+Copies of these files override the built-in text, so a translation can be
+fixed without rebuilding the exe. If the folder is missing, the program
+still runs in English and Chinese.
+
+
 WHAT IT CHANGES
 ---------------
 - bindings.lua: only the lines for actions you changed. Your comments, other
@@ -79,6 +121,7 @@ WHAT IT CHANGES
 - bindings.lua.binder.bak: a copy of bindings.lua from just before each save.
   (AC8HOTAS keeps its own bindings.lua.bak, which the game overwrites itself.)
 - %APPDATA%\AC8-HOTAS-Binder\folder.txt: remembers your AC8HOTAS folder.
+- %APPDATA%\AC8-HOTAS-Binder\language.txt: remembers "en" or "zh-CN".
 
 The binder only reads your controllers through the standard Windows HID API.
 It never changes controller settings, takes exclusive control of a device,
