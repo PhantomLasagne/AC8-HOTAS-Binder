@@ -22,7 +22,7 @@ build() {
     [ -x "$CSC" ] || { echo "csc.exe not found at $CSC" >&2; exit 1; }
     "$CSC" /nologo /target:winexe /platform:anycpu /optimize+ \
         "/win32icon:$(win src/icon.ico)" "/win32manifest:$(win src/app.manifest)" \
-        /r:System.Windows.Forms.dll /r:System.Drawing.dll \
+        /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll \
         "/out:$(win "$EXE")" "$(win src/Binder.cs)"
     echo "Built $EXE $VERSION"
 }
@@ -43,12 +43,14 @@ case "${1:-build}" in
         dest="$AC8HOTAS_DIR/AC8-HOTAS-Binder"
         mkdir -p "$dest"
         cp "$EXE" README.txt LICENSE.txt "$dest/"
+        cp -r languages "$dest/"
         echo "Installed to $dest" ;;
     package)
         build
         stage=$(mktemp -d)
         mkdir -p "$stage/AC8-HOTAS-Binder/src" dist
         cp "$EXE" README.txt LICENSE.txt build.cmd "$stage/AC8-HOTAS-Binder/"
+        cp -r languages "$stage/AC8-HOTAS-Binder/"
         cp src/Binder.cs src/app.manifest src/icon.ico src/make-icon.ps1 "$stage/AC8-HOTAS-Binder/src/"
         zip_path="$PWD/dist/AC8-HOTAS-Binder-$VERSION.zip"
         rm -f "$zip_path"
