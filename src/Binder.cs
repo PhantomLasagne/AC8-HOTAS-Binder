@@ -28,14 +28,14 @@ using Microsoft.Win32.SafeHandles;
 [assembly: AssemblyProduct("AC8 HOTAS Binder")]
 [assembly: AssemblyCompany("PhantomLasagne")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 PhantomLasagne. MIT License.")]
-[assembly: AssemblyVersion("1.0.1.0")]
-[assembly: AssemblyFileVersion("1.0.1.0")]
+[assembly: AssemblyVersion("1.0.2.0")]
+[assembly: AssemblyFileVersion("1.0.2.0")]
 
 namespace AC8HotasBinder
 {
     static class Program
     {
-        public const string Version = "1.0.1";
+        public const string Version = "1.0.2";
 
         [STAThread]
         static int Main(string[] args)
