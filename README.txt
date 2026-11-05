@@ -1,4 +1,4 @@
-AC8 HOTAS Binder 1.0.2
+AC8 HOTAS Binder 1.1.0
 ======================
 by PhantomLasagne  (GitHub: PhantomLasagne, Nexus Mods: Ph4ntomLasagne)
 
@@ -11,7 +11,8 @@ No more copying device GUIDs and button numbers by hand.
 
 REQUIREMENTS
 ------------
-- AC8HOTAS 0.2.0, installed and working (tested with 0.2.0).
+- AC8HOTAS 0.2.0 or newer, installed and working. Several inputs per action
+  and the direct weapon-select actions need AC8HOTAS 0.3.2 or newer.
 - Windows 10 or 11. Uses .NET Framework 4, which is already part of Windows.
 - Your controllers plugged in.
 
@@ -44,6 +45,9 @@ HOW TO USE
    Esc cancels.
 3. Repeat for everything you want. Click "Clear" (or press Delete) to unbind.
    Click an axis's Direction cell to flip Normal/Inverted.
+   To give an action a second input (AC8HOTAS 0.3.2 or newer), click "+ Add"
+   on its row and press the extra control. Each input gets its own row
+   underneath, with its own Direction and Clear.
 4. Click "Save bindings" (Ctrl+S). The button shows how many unsaved changes
    you have, and the status line turns amber until you save.
 5. Launch the game and test. If something feels off, quit, adjust it in the
@@ -70,6 +74,14 @@ Tips
 - Drag the grips between the column headers to resize columns.
 - Optional and untested actions (ExtraButton_01 etc.) are under the collapsed
   "Optional & untested" group at the bottom.
+- SelectMissiles, SelectSpecialWeapon1 and SelectSpecialWeapon2 pick a weapon
+  directly instead of cycling (AC8HOTAS 0.3.2 or newer).
+- Several inputs on different devices is the safe case. Several on the same
+  device can need more slots than the game has for that action; AC8HOTAS then
+  rejects the whole file (see TROUBLESHOOTING).
+- With an AC8HOTAS older than 0.3.2, "+ Add" is hidden and the weapon-select
+  rows are greyed out, because that version rejects the whole bindings.lua if
+  it finds either.
 
 
 WHAT IT CHANGES
@@ -118,8 +130,15 @@ are available; the game has no lean or zoom axis.
 Each time you fly: start tracking in opentrack before the game, look straight
 ahead and press opentrack's centre key. If the camera sits stuck to one side,
 opentrack has stopped tracking; vJoy holds its last position until it resumes.
-Tune sensitivity with opentrack's yaw and pitch curves. Camera actions take one
-control each, so this replaces any stick you had on the camera.
+Tune sensitivity with opentrack's yaw and pitch curves.
+
+With AC8HOTAS 0.2.0 each camera action takes one control, so head tracking
+replaces any stick you had on the camera. With 0.3.2 or newer you can keep the
+stick as well: pause tracking in opentrack (or keep your head still), click
+"+ Add" on each camera row and move the stick. How the
+game combines two camera axes moving at once hasn't been tested yet. If
+opentrack stops tracking, vJoy holds its last position and the stick will be
+working against that offset.
 
 
 TROUBLESHOOTING
@@ -129,8 +148,10 @@ TROUBLESHOOTING
   is included in the src folder and can be built with build.cmd.
 
 A row says "Edited by hand"
-  That line in bindings.lua isn't a simple single-line entry, so the binder
-  leaves it alone. Edit it in a text editor, or put it back on one line.
+  The binder doesn't recognise that entry in bindings.lua (for example it's
+  defined twice, or has extra code or a missing brace), so it leaves it alone.
+  The row says which. Edit it in a text editor, or set it back to nil.
+  Single inputs and lists of inputs in the format AC8HOTAS documents are fine.
 
 Pressing a control does nothing while listening
   Check the device strip at the top. Green = ready. Amber = not in the game's

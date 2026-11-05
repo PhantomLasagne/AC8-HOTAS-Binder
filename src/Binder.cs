@@ -28,14 +28,14 @@ using Microsoft.Win32.SafeHandles;
 [assembly: AssemblyProduct("AC8 HOTAS Binder")]
 [assembly: AssemblyCompany("PhantomLasagne")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 PhantomLasagne. MIT License.")]
-[assembly: AssemblyVersion("1.0.2.0")]
-[assembly: AssemblyFileVersion("1.0.2.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
 namespace AC8HotasBinder
 {
     static class Program
     {
-        public const string Version = "1.0.2";
+        public const string Version = "1.1.0";
 
         [STAThread]
         static int Main(string[] args)
@@ -63,6 +63,8 @@ namespace AC8HotasBinder
     {
         public string Name, Group, Hint, Prompt;
         public bool IsAxis, Optional;
+        // Direct weapon selection; AC8HOTAS 0.3.2+ only (older versions reject the file).
+        public bool DirectSelect;
         // The game's own defaults, for reference: keyboard & mouse, controller (Expert), and a tooltip note.
         public string Keys, Pad, DefaultsNote;
 
@@ -77,6 +79,9 @@ namespace AC8HotasBinder
             B(l, g, "Gun", "Fire gun");
             B(l, g, "Missile", "Fire missile");
             B(l, g, "Weapon", "Change weapon");
+            W(l, g, "SelectMissiles", "Select standard missiles");
+            W(l, g, "SelectSpecialWeapon1", "Select special weapon 1");
+            W(l, g, "SelectSpecialWeapon2", "Select special weapon 2");
             B(l, g, "Target", "Switch target");
             B(l, g, "Radar", "Radar / map");
             B(l, g, "Flare", "Flares");
@@ -138,6 +143,10 @@ namespace AC8HotasBinder
             d("Gun", "LMB / J", "A / Cross", "In game: Fire machine gun.");
             d("Missile", "RMB / L", "B / Circle", "In game: Fire missile or weapon.");
             d("Weapon", "Wheel ↓ / K", "X / Square", "In game: Change weapon / Next weapon. Previous weapon is wheel ↑ / I; keys 1, 2 and 3 pick standard missiles or a special weapon directly.");
+            // Inferred from the Weapon entry above: assumes 1, 2, 3 map in this order.
+            d("SelectMissiles", "1", null, "In game: keys 1, 2 and 3 pick standard missiles or a special weapon directly (order assumed). Needs AC8HOTAS 0.3.2 or newer.");
+            d("SelectSpecialWeapon1", "2", null, "In game: keys 1, 2 and 3 pick standard missiles or a special weapon directly (order assumed). Needs AC8HOTAS 0.3.2 or newer.");
+            d("SelectSpecialWeapon2", "3", null, "In game: keys 1, 2 and 3 pick standard missiles or a special weapon directly (order assumed). Needs AC8HOTAS 0.3.2 or newer.");
             d("Target", "T / MMB", "Y / Triangle", "In game: Change target. MMB is the mouse wheel click.");
             d("Radar", "M", "View / Share", "In game: Switch radar map.");
             d("Flare", "X", null, "In game: Deploy flares.");
@@ -181,6 +190,11 @@ namespace AC8HotasBinder
             l.Add(new ActionDef { Name = n, Group = g, Hint = hint });
         }
 
+        static void W(List<ActionDef> l, string g, string n, string hint)
+        {
+            l.Add(new ActionDef { Name = n, Group = g, Hint = hint, DirectSelect = true });
+        }
+
         static void A(List<ActionDef> l, string g, string n, string hint, string prompt)
         {
             l.Add(new ActionDef { Name = n, Group = g, Hint = hint, Prompt = prompt, IsAxis = true });
@@ -195,6 +209,8 @@ namespace AC8HotasBinder
     // bindings.lua model
     // ------------------------------------------------------------------------------------
 
+    // One input. An action holds a List<Binding> in slot order; null means unbound (never an
+    // empty list, which AC8HOTAS rejects).
     class Binding
     {
         public string Device, Input, Mode;
@@ -218,7 +234,7 @@ namespace AC8HotasBinder
                 else if (key == "invert" && (raw == "true" || raw == "false")) b.Invert = raw == "true";
                 else return null;
             }
-            if (PairRx.Replace(inner, "").Trim(' ', '\t', ',').Length != 0) return null;
+            if (!Regex.IsMatch(PairRx.Replace(inner, ""), @"^[\s,]*$")) return null;
             if (b.Device == null || b.Input == null) return null;
             return b;
         }
@@ -243,16 +259,80 @@ namespace AC8HotasBinder
             if (a == null || b == null) return a == b;
             return a.SameInput(b) && a.Invert == b.Invert && a.Mode == b.Mode;
         }
+
+        // Order matters: it is the order of the game's profile slots.
+        public static bool SameList(List<Binding> a, List<Binding> b)
+        {
+            int na = a == null ? 0 : a.Count, nb = b == null ? 0 : b.Count;
+            if (na != nb) return false;
+            for (int i = 0; i < na; i++) if (!Same(a[i], b[i])) return false;
+            return true;
+        }
+    }
+
+    // Just enough Lua lexing to ignore braces and "--" inside quoted strings. Device GUIDs
+    // contain braces, and so can the device names written as comments.
+    static class Lua
+    {
+        // The line without its trailing comment.
+        public static string Code(string line)
+        {
+            char q = '\0';
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (q != '\0') { if (c == '\\') i++; else if (c == q) q = '\0'; }
+                else if (c == '"' || c == '\'') q = c;
+                else if (c == '-' && i + 1 < line.Length && line[i + 1] == '-') return line.Substring(0, i);
+            }
+            return line;
+        }
+
+        // Net count of { minus } outside quoted strings.
+        public static int Braces(string code)
+        {
+            int n = 0; char q = '\0';
+            for (int i = 0; i < code.Length; i++)
+            {
+                char c = code[i];
+                if (q != '\0') { if (c == '\\') i++; else if (c == q) q = '\0'; }
+                else if (c == '"' || c == '\'') q = c;
+                else if (c == '{') n++;
+                else if (c == '}') n--;
+            }
+            return n;
+        }
+
+        // The top-level { ... } tables in code. other is true if anything but tables, commas
+        // and whitespace sits at the top level. Returns null if the braces don't balance.
+        public static List<string> Tables(string code, out bool other)
+        {
+            var list = new List<string>();
+            int depth = 0, start = 0; char q = '\0';
+            other = false;
+            for (int i = 0; i < code.Length; i++)
+            {
+                char c = code[i];
+                if (q != '\0') { if (c == '\\') i++; else if (c == q) q = '\0'; continue; }
+                if (c == '"' || c == '\'') { q = c; if (depth == 0) other = true; }
+                else if (c == '{') { if (depth++ == 0) start = i; }
+                else if (c == '}')
+                {
+                    if (--depth < 0) return null;
+                    if (depth == 0) list.Add(code.Substring(start, i - start + 1));
+                }
+                else if (depth == 0 && c != ',' && !char.IsWhiteSpace(c)) other = true;
+            }
+            return depth == 0 && q == '\0' ? list : null;
+        }
     }
 
     class BindingsDoc
     {
         public const string Marker = "-- BEGIN DETECTED DEVICES";
-        public readonly Dictionary<string, Binding> Bindings = new Dictionary<string, Binding>();
+        public readonly Dictionary<string, List<Binding>> Bindings = new Dictionary<string, List<Binding>>();
         public readonly Dictionary<string, string> Locked = new Dictionary<string, string>(); // action -> reason
 
-        // A single-line table; quoted strings may contain braces (device GUIDs do).
-        static readonly Regex LineRx = new Regex(@"^(\s*)([A-Za-z_]\w*)\s*=\s*(nil|\{(?:[^{}""']|""(?:[^""\\]|\\.)*""|'[^']*')*\})\s*,?\s*(--.*)?$");
         static readonly Regex AssignRx = new Regex(@"^\s*([A-Za-z_]\w*)\s*=");
         static readonly Regex OpenRx = new Regex(@"^\s*bindings\s*=\s*\{\s*(--.*)?$");
         static readonly Regex CloseRx = new Regex(@"^\s*\}\s*,?\s*(--.*)?$");
@@ -265,48 +345,108 @@ namespace AC8HotasBinder
             return lines.Count;
         }
 
-        public static BindingsDoc Parse(string text)
+        // One "Action = value," entry, which may span lines (a list of inputs).
+        class Entry { public string Name, Value, Problem; public int First, Last; }
+
+        static List<Entry> Entries(List<string> lines, int end)
         {
-            var doc = new BindingsDoc();
-            var lines = Lines(text);
-            int end = EditableEnd(lines);
-            var seen = new HashSet<string>();
+            var list = new List<Entry>();
             for (int i = 0; i < end; i++)
             {
                 var a = AssignRx.Match(lines[i]);
                 if (!a.Success || !ActionDef.ByName.ContainsKey(a.Groups[1].Value)) continue;
-                string name = a.Groups[1].Value;
-                if (!seen.Add(name)) { doc.Locked[name] = "defined twice in bindings.lua"; continue; }
-                var m = LineRx.Match(lines[i]);
-                if (!m.Success) { doc.Locked[name] = "hand-edited across several lines"; continue; }
-                if (m.Groups[3].Value == "nil") { doc.Bindings[name] = null; continue; }
-                var b = Binding.Parse(m.Groups[3].Value);
-                if (b == null) doc.Locked[name] = "hand-edited in a format this tool doesn't recognise";
-                else doc.Bindings[name] = b;
+                string code = Lua.Code(lines[i]).Substring(a.Length);
+                var value = new StringBuilder(code);
+                int depth = Lua.Braces(code), j = i;
+                while (depth > 0 && j + 1 < end)
+                {
+                    code = Lua.Code(lines[++j]);
+                    value.Append('\n').Append(code);
+                    depth += Lua.Braces(code);
+                }
+                string v = value.ToString().Trim();
+                if (v.EndsWith(",")) v = v.Substring(0, v.Length - 1).TrimEnd();
+                list.Add(new Entry
+                {
+                    Name = a.Groups[1].Value, First = i, Last = j, Value = v,
+                    Problem = depth > 0 ? "a { that is never closed" : depth < 0 ? "an extra }" : null
+                });
+                i = j;
+            }
+            return list;
+        }
+
+        // A single input table, or a list of them; null if it's anything else.
+        static List<Binding> ParseValue(string value)
+        {
+            bool other;
+            var whole = Lua.Tables(value, out other);
+            if (whole == null || other || whole.Count != 1 || whole[0].Length != value.Length) return null;
+            var items = Lua.Tables(value.Substring(1, value.Length - 2), out other);
+            if (items == null) return null;
+            if (items.Count == 0)
+            {
+                var single = Binding.Parse(value);
+                return single == null ? null : new List<Binding> { single };
+            }
+            if (other) return null;
+            var list = new List<Binding>();
+            foreach (var t in items)
+            {
+                var b = Binding.Parse(t);
+                if (b == null) return null;
+                list.Add(b);
+            }
+            return list;
+        }
+
+        public static BindingsDoc Parse(string text)
+        {
+            var doc = new BindingsDoc();
+            var lines = Lines(text);
+            var seen = new HashSet<string>();
+            foreach (var e in Entries(lines, EditableEnd(lines)))
+            {
+                if (!seen.Add(e.Name)) { doc.Locked[e.Name] = "defined twice in bindings.lua"; continue; }
+                if (e.Problem != null) { doc.Locked[e.Name] = "has " + e.Problem; continue; }
+                if (e.Value == "nil") { doc.Bindings[e.Name] = null; continue; }
+                var list = ParseValue(e.Value);
+                if (list == null) doc.Locked[e.Name] = "in a format this tool doesn't recognise";
+                else doc.Bindings[e.Name] = list;
             }
             foreach (var n in doc.Locked.Keys) doc.Bindings.Remove(n);
             return doc;
         }
 
-        // Rewrites only the lines for the given actions; everything else is kept byte-for-byte.
-        public static string Apply(string text, IDictionary<string, Binding> changes, Func<Binding, string> comment)
+        // One input stays on one line, as AC8HOTAS 0.2.0 expects; two or more use the mod's
+        // multi-line list format. Clearing writes nil, never an empty list.
+        static List<string> Render(ActionDef def, List<Binding> list, string indent, Func<Binding, string> comment)
+        {
+            if (list == null || list.Count == 0) return new List<string> { indent + def.Name + " = nil," };
+            if (list.Count == 1) return new List<string> { indent + def.Name + " = " + list[0].ToLua(def.IsAxis) + ", -- " + comment(list[0]) };
+            var r = new List<string> { indent + def.Name + " = {" };
+            foreach (var b in list) r.Add(indent + "    " + b.ToLua(def.IsAxis) + ", -- " + comment(b));
+            r.Add(indent + "},");
+            return r;
+        }
+
+        // Rewrites only the lines of the given actions; everything else is kept byte-for-byte.
+        public static string Apply(string text, IDictionary<string, List<Binding>> changes, Func<Binding, string> comment)
         {
             string nl = text.Contains("\r\n") ? "\r\n" : "\n";
             var lines = Lines(text);
-            int end = EditableEnd(lines);
             foreach (var kv in changes)
             {
                 var def = ActionDef.ByName[kv.Key];
-                string value = kv.Value == null ? "nil" : kv.Value.ToLua(def.IsAxis);
-                string tail = kv.Value == null ? "" : " -- " + comment(kv.Value);
-                int idx = -1; string indent = "        ";
-                for (int i = 0; i < end; i++)
+                int end = EditableEnd(lines);
+                var e = Entries(lines, end).FirstOrDefault(x => x.Name == kv.Key);
+                if (e != null)
                 {
-                    var m = LineRx.Match(lines[i]);
-                    if (m.Success && m.Groups[2].Value == kv.Key) { idx = i; indent = m.Groups[1].Value; break; }
+                    var block = Render(def, kv.Value, Regex.Match(lines[e.First], @"^\s*").Value, comment);
+                    lines.RemoveRange(e.First, e.Last - e.First + 1);
+                    lines.InsertRange(e.First, block);
+                    continue;
                 }
-                string line = indent + kv.Key + " = " + value + "," + tail;
-                if (idx >= 0) { lines[idx] = line; continue; }
 
                 int open = -1, close = -1;
                 for (int i = 0; i < end; i++) if (OpenRx.IsMatch(lines[i])) { open = i; break; }
@@ -317,14 +457,29 @@ namespace AC8HotasBinder
                     {
                         string t = lines[i];
                         if (CloseRx.IsMatch(t) && depth == 0) { close = i; break; }
-                        depth += t.Count(c => c == '{') - t.Count(c => c == '}');
+                        depth += Lua.Braces(Lua.Code(t));
                     }
                 }
                 if (close < 0) throw new InvalidOperationException("Couldn't find the bindings = { ... } table in bindings.lua.");
-                lines.Insert(close, line);
-                end++;
+                lines.InsertRange(close, Render(def, kv.Value, "        ", comment));
             }
             return string.Join(nl, lines);
+        }
+    }
+
+    // What the installed AC8HOTAS can read, checked by feature rather than version number.
+    // 0.2.0 rejects the whole bindings.lua if it meets a list of inputs or a weapon-select binding.
+    class ModFeatures
+    {
+        public bool Lists, WeaponSelect;
+
+        public static ModFeatures Detect(string dir)
+        {
+            var f = new ModFeatures();
+            if (dir == null) return f;
+            try { f.Lists = File.ReadAllText(Path.Combine(dir, "Scripts", "mapper.lua")).Contains("Binding list must"); } catch { }
+            try { f.WeaponSelect = File.Exists(Path.Combine(dir, "Scripts", "weapon_select.lua")); } catch { }
+            return f;
         }
     }
 
@@ -790,7 +945,7 @@ namespace AC8HotasBinder
 
     class MainForm : Form
     {
-        const int ColAction = 0, ColHint = 1, ColKeys = 2, ColPad = 3, ColBinding = 4, ColDirection = 5, ColShared = 6, ColClear = 7;
+        const int ColAction = 0, ColHint = 1, ColKeys = 2, ColPad = 3, ColBinding = 4, ColDirection = 5, ColShared = 6, ColAdd = 7, ColClear = 8;
         const double AxisThreshold = 0.35;
         static readonly UTF8Encoding Utf8NoBom = new UTF8Encoding(false);
 
@@ -800,16 +955,19 @@ namespace AC8HotasBinder
         readonly Dictionary<string, CatalogDevice> catalogByProduct = new Dictionary<string, CatalogDevice>(StringComparer.OrdinalIgnoreCase);
         readonly HashSet<string> duplicateProducts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         BindingsDoc disk = new BindingsDoc();
-        readonly Dictionary<string, Binding> current = new Dictionary<string, Binding>();
+        readonly Dictionary<string, List<Binding>> current = new Dictionary<string, List<Binding>>(); // null = unbound
+        ModFeatures features = new ModFeatures();
         DateTime bindingsStamp, devicesStamp;
 
         readonly HidManager hid = new HidManager();
         ActionDef listening;
+        int listenSlot;
         readonly Dictionary<HidDevice, double[]> baseline = new Dictionary<HidDevice, double[]>();
         readonly HashSet<string> ignoredAxes = new HashSet<string>();
 
         DataGridView grid;
         readonly Dictionary<string, DataGridViewRow> rows = new Dictionary<string, DataGridViewRow>();
+        readonly Dictionary<string, List<DataGridViewRow>> extraRows = new Dictionary<string, List<DataGridViewRow>>();
         readonly List<DataGridViewRow> optionalRows = new List<DataGridViewRow>();
         DataGridViewRow optionalHeader;
         bool optionalOpen;
@@ -951,7 +1109,7 @@ namespace AC8HotasBinder
                 Padding = P(8, 0, 8, 0), Font = Font
             };
             grid.RowTemplate.Height = S(30);
-            AddColumn("ACTION", 150, false);
+            AddColumn("ACTION", 180, false);
             AddColumn("WHAT IT DOES", 180, false);
             AddColumn("KB / MOUSE", 110, false);
             AddColumn("CONTROLLER", 125, false);
@@ -959,14 +1117,17 @@ namespace AC8HotasBinder
             AddColumn("DIRECTION", 92, false);
             AddColumn("ALSO USED BY", 110, false);
             AddColumn("", 64, false);
+            AddColumn("", 64, false);
             grid.Columns[ColKeys].ToolTipText = "The game's default keyboard & mouse controls, for reference.";
             grid.Columns[ColPad].ToolTipText = "The game's default controller buttons (Expert controls), for reference.";
-            grid.CellClick += GridCellClick;
+            // Handled after the event returns: a click can add or remove rows (extra inputs),
+            // which DataGridView doesn't allow from inside its own cell events.
+            grid.CellClick += (s, e) => BeginInvoke((Action)(() => GridCellClick(s, e)));
             grid.CellMouseEnter += (s, e) =>
             {
                 if (e.RowIndex < 0) return;
                 var r = grid.Rows[e.RowIndex];
-                grid.Cursor = (r.Tag is ActionDef || r == optionalHeader) ? Cursors.Hand : Cursors.Default;
+                grid.Cursor = (r.Tag is RowRef || r == optionalHeader) ? Cursors.Hand : Cursors.Default;
             };
             grid.CellMouseLeave += (s, e) => { if (dragCol < 0) grid.Cursor = Cursors.Default; };
             grid.CellPainting += PaintHeader;
@@ -1088,7 +1249,7 @@ namespace AC8HotasBinder
 
         void PaintHeader(object sender, DataGridViewCellPaintingEventArgs e)
         {
-            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && !(grid.Rows[e.RowIndex].Tag is ActionDef))
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && !(grid.Rows[e.RowIndex].Tag is RowRef))
             {
                 // Group rows: background only; PaintGroupRow draws the label across the row.
                 e.PaintBackground(e.CellBounds, false);
@@ -1114,7 +1275,7 @@ namespace AC8HotasBinder
         void PaintGroupRow(object sender, DataGridViewRowPostPaintEventArgs e)
         {
             var r = grid.Rows[e.RowIndex];
-            if (r.Tag is ActionDef) return;
+            if (r.Tag is RowRef) return;
             var flags = TextFormatFlags.Bottom | TextFormatFlags.Left | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis;
             var bounds = new Rectangle(e.RowBounds.Left + S(8), e.RowBounds.Top, e.RowBounds.Width - S(16), e.RowBounds.Height - S(4));
             string label = r.Cells[ColAction].Value as string ?? "", extra = r.Cells[ColHint].Value as string;
@@ -1129,6 +1290,7 @@ namespace AC8HotasBinder
         {
             grid.Rows.Clear();
             rows.Clear();
+            extraRows.Clear();
             optionalRows.Clear();
             string group = null;
             foreach (var def in ActionDef.All)
@@ -1136,7 +1298,7 @@ namespace AC8HotasBinder
                 if (def.Group != group)
                 {
                     group = def.Group;
-                    int hi = grid.Rows.Add(group, "", "", "", "", "", "", "");
+                    int hi = grid.Rows.Add(group, "", "", "", "", "", "", "", "");
                     var hr = grid.Rows[hi];
                     hr.Height = S(34);
                     hr.DefaultCellStyle = new DataGridViewCellStyle
@@ -1146,10 +1308,11 @@ namespace AC8HotasBinder
                     };
                     if (group == ActionDef.OptionalGroup) optionalHeader = hr;
                 }
-                int i = grid.Rows.Add(def.Name, def.Hint, def.Keys ?? "–", def.Pad ?? "–", "", "", "", "");
+                int i = grid.Rows.Add(def.Name, def.Hint, def.Keys ?? "–", def.Pad ?? "–", "", "", "", "", "");
                 var r = grid.Rows[i];
-                r.Tag = def;
+                r.Tag = new RowRef { Def = def, Slot = 0 };
                 rows[def.Name] = r;
+                extraRows[def.Name] = new List<DataGridViewRow>();
                 foreach (int c in new[] { ColHint, ColKeys, ColPad }) r.Cells[c].Style.ForeColor = r.Cells[c].Style.SelectionForeColor = Theme.Dim;
                 r.Cells[ColKeys].ToolTipText = DefaultTip("Keyboard & mouse", def.Keys, def.DefaultsNote);
                 r.Cells[ColPad].ToolTipText = DefaultTip("Controller", def.Pad, def.DefaultsNote);
@@ -1168,7 +1331,7 @@ namespace AC8HotasBinder
         void UpdateOptionalHeader()
         {
             if (optionalHeader == null) return;
-            int bound = optionalRows.Count(r => current.ContainsKey(((ActionDef)r.Tag).Name) && current[((ActionDef)r.Tag).Name] != null);
+            int bound = optionalRows.Count(r => InputCount(((RowRef)r.Tag).Def.Name) > 0);
             optionalHeader.Cells[ColAction].Value = (optionalOpen ? "▾  " : "▸  ") + ActionDef.OptionalGroup;
             optionalHeader.Cells[ColHint].Value = optionalOpen ? "click to hide" : string.Format("{0} actions, {1} bound — click to show", optionalRows.Count, bound);
         }
@@ -1179,7 +1342,7 @@ namespace AC8HotasBinder
             optionalOpen = !optionalOpen;
             grid.CurrentCell = null;
             foreach (var r in optionalRows) r.Visible = optionalOpen;
-            UpdateOptionalHeader();
+            RefreshAll(); // the rows of extra inputs follow their action's row
             if (optionalOpen && optionalRows.Count > 0) grid.FirstDisplayedScrollingRowIndex = Math.Max(0, optionalHeader.Index - 2);
         }
 
@@ -1241,6 +1404,7 @@ namespace AC8HotasBinder
             }
             catch { }
             pathLabel.Text = bindingsPath;
+            DetectFeatures();
             current.Clear();
             LoadCatalog();
             LoadBindings(true);
@@ -1251,6 +1415,12 @@ namespace AC8HotasBinder
                 Banner("No game device list yet. Launch the game once with AC8HOTAS installed and your controllers plugged in, quit, then click Rescan devices.", BannerKind.Warn);
             else
                 Banner("Click an action to bind it.", BannerKind.Info);
+        }
+
+        void DetectFeatures()
+        {
+            features = ModFeatures.Detect(modDir);
+            grid.Columns[ColAdd].Visible = features.Lists;
         }
 
         void LoadCatalog()
@@ -1283,10 +1453,10 @@ namespace AC8HotasBinder
             foreach (var def in ActionDef.All)
             {
                 string n = def.Name;
-                Binding was, now;
+                List<Binding> was, now;
                 disk.Bindings.TryGetValue(n, out was);
                 fresh.Bindings.TryGetValue(n, out now);
-                bool edited = !reset && current.ContainsKey(n) && !Binding.Same(current[n], was) && !disk.Locked.ContainsKey(n);
+                bool edited = !reset && current.ContainsKey(n) && !Binding.SameList(current[n], was) && !disk.Locked.ContainsKey(n);
                 if (fresh.Locked.ContainsKey(n)) current.Remove(n);
                 else if (!edited) current[n] = now;
             }
@@ -1331,7 +1501,7 @@ namespace AC8HotasBinder
 
         void Rescan(bool reloadCatalog)
         {
-            if (reloadCatalog) { LoadCatalog(); RefreshAll(); }
+            if (reloadCatalog) { DetectFeatures(); LoadCatalog(); RefreshAll(); }
             StopListening();
             hid.Rescan();
             deviceStrip.SuspendLayout();
@@ -1386,14 +1556,37 @@ namespace AC8HotasBinder
 
         // ---------------------------------------------------------------- rows
 
+        // Each action has its own row for its first input (slot 0); inputs 2, 3, ... get rows
+        // underneath it, as does an input being added.
+        class RowRef { public ActionDef Def; public int Slot; }
+
+        List<Binding> Inputs(string name)
+        {
+            List<Binding> l;
+            return current.TryGetValue(name, out l) ? l : null;
+        }
+
+        int InputCount(string name)
+        {
+            var l = Inputs(name);
+            return l == null ? 0 : l.Count;
+        }
+
+        bool Unsupported(ActionDef def) { return def.DirectSelect && !features.WeaponSelect; }
+
+        DataGridViewRow RowFor(ActionDef def, int slot)
+        {
+            return slot == 0 ? rows[def.Name] : extraRows[def.Name][slot - 1];
+        }
+
         List<string> DirtyNames()
         {
             var l = new List<string>();
             foreach (var def in ActionDef.All)
             {
                 if (disk.Locked.ContainsKey(def.Name) || !current.ContainsKey(def.Name)) continue;
-                Binding d; disk.Bindings.TryGetValue(def.Name, out d);
-                if (!Binding.Same(current[def.Name], d)) l.Add(def.Name);
+                List<Binding> d; disk.Bindings.TryGetValue(def.Name, out d);
+                if (!Binding.SameList(current[def.Name], d)) l.Add(def.Name);
             }
             return l;
         }
@@ -1416,42 +1609,84 @@ namespace AC8HotasBinder
             Text = "AC8 HOTAS Binder" + (n > 0 ? " •" : "");
         }
 
+        // Adds or removes the rows under an action so there is one per extra input.
+        void SyncExtraRows(ActionDef def)
+        {
+            var main = rows[def.Name];
+            var extras = extraRows[def.Name];
+            int n = disk.Locked.ContainsKey(def.Name) ? 0 : InputCount(def.Name);
+            int want = Math.Max(0, n - 1) + (listening == def && listenSlot >= Math.Max(n, 1) ? 1 : 0);
+            while (extras.Count > want)
+            {
+                var x = extras[extras.Count - 1];
+                extras.RemoveAt(extras.Count - 1);
+                grid.Rows.Remove(x);
+            }
+            while (extras.Count < want)
+            {
+                int at = main.Index + extras.Count + 1;
+                var values = new object[grid.Columns.Count];
+                for (int i = 0; i < values.Length; i++) values[i] = "";
+                values[ColAction] = "    ↳  also";
+                grid.Rows.Insert(at, values);
+                var r = grid.Rows[at];
+                r.Tag = new RowRef { Def = def, Slot = extras.Count + 1 };
+                r.Cells[ColAction].Style.ForeColor = r.Cells[ColAction].Style.SelectionForeColor = Theme.Dim;
+                extras.Add(r);
+            }
+            foreach (var x in extras) x.Visible = main.Visible;
+        }
+
         void RefreshRow(ActionDef def, bool dirty)
         {
-            var r = rows[def.Name];
-            bool isListening = listening == def;
+            SyncExtraRows(def);
+            var main = rows[def.Name];
+            main.Cells[ColAction].Value = def.Name + (dirty ? "  •" : "");
+            main.Cells[ColAction].Style.ForeColor = main.Cells[ColAction].Style.SelectionForeColor = dirty ? Theme.Accent : Theme.Text;
+            var list = Inputs(def.Name);
+            RefreshSlot(def, main, 0, list);
+            var extras = extraRows[def.Name];
+            for (int i = 0; i < extras.Count; i++) RefreshSlot(def, extras[i], i + 1, list);
+        }
+
+        void RefreshSlot(ActionDef def, DataGridViewRow r, int slot, List<Binding> list)
+        {
+            bool isListening = listening == def && listenSlot == slot;
             Color bg = isListening ? Theme.AccentDark : (r == flashRow && DateTime.Now < flashUntil) ? Theme.GoodDark : Theme.Row;
             r.DefaultCellStyle.BackColor = bg;
             r.DefaultCellStyle.SelectionBackColor = isListening ? Theme.AccentDark : (bg == Theme.Row ? Theme.RowHover : bg);
 
-            r.Cells[ColAction].Value = def.Name + (dirty ? "  •" : "");
-            r.Cells[ColAction].Style.ForeColor = r.Cells[ColAction].Style.SelectionForeColor = dirty ? Theme.Accent : Theme.Text;
-
             var bc = r.Cells[ColBinding];
             var dc = r.Cells[ColDirection];
             var sc = r.Cells[ColShared];
+            var ac = r.Cells[ColAdd];
             var cc = r.Cells[ColClear];
-            dc.Value = sc.Value = cc.Value = "";
-            bc.ToolTipText = dc.ToolTipText = cc.ToolTipText = "";
+            dc.Value = sc.Value = ac.Value = cc.Value = "";
+            bc.ToolTipText = dc.ToolTipText = ac.ToolTipText = cc.ToolTipText = "";
 
             string locked;
-            Binding b;
             if (disk.Locked.TryGetValue(def.Name, out locked))
             {
                 SetCell(bc, "Edited by hand — " + locked, Theme.Warn);
-                bc.ToolTipText = "Edit this one directly in bindings.lua, or change it back to a single line to edit it here.";
+                bc.ToolTipText = "This tool leaves it alone. Edit it in bindings.lua directly, or set it back to nil to edit it here.";
                 return;
             }
             if (isListening)
             {
-                SetCell(bc, def.IsAxis ? "Listening…  " + def.Prompt : "Listening…  press a button or hat direction", Theme.Accent);
-                cc.Value = "Cancel"; SetCell(cc, "Cancel", Theme.Dim);
+                string what = def.IsAxis ? def.Prompt : "press a button or hat direction";
+                SetCell(bc, (slot > 0 && slot >= InputCount(def.Name) ? "Adding another input…  " : "Listening…  ") + what, Theme.Accent);
+                SetCell(cc, "Cancel", Theme.Dim);
                 return;
             }
-            current.TryGetValue(def.Name, out b);
+            Binding b = list != null && slot < list.Count ? list[slot] : null;
             if (b == null)
             {
-                SetCell(bc, "—  click to bind", Theme.Dim);
+                if (Unsupported(def))
+                {
+                    SetCell(bc, "Needs AC8HOTAS 0.3.2 or newer", Theme.Dim);
+                    bc.ToolTipText = "Direct weapon selection arrived in a later AC8HOTAS. Your installed version would reject bindings.lua with this bound.";
+                }
+                else SetCell(bc, "—  click to bind", Theme.Dim);
                 return;
             }
             string dev = DeviceLabel(b.Device);
@@ -1461,16 +1696,31 @@ namespace AC8HotasBinder
                 bc.ToolTipText = "Device " + b.Device + " isn't in the game's device list. Plug it in and launch the game once, or rebind this action.";
             }
             else SetCell(bc, dev + "  ·  " + InputLabel(b.Input), Theme.Text);
+            string problem = Unsupported(def)
+                ? "Your AC8HOTAS has no direct weapon selection, so it rejects bindings.lua while this is bound. Clear it, or update AC8HOTAS to 0.3.2 or newer."
+                : slot > 0 && !features.Lists
+                ? "Your AC8HOTAS takes one input per action, so it rejects bindings.lua while this action has several. Clear the extra ones, or update AC8HOTAS to 0.3.2 or newer."
+                : null;
+            if (problem != null)
+            {
+                bc.Style.ForeColor = bc.Style.SelectionForeColor = Theme.Bad;
+                bc.ToolTipText = problem;
+            }
 
             if (def.IsAxis)
             {
                 SetCell(dc, b.Invert ? "Inverted" : "Normal", b.Invert ? Theme.Accent : Theme.Dim);
                 dc.ToolTipText = "Click to flip direction";
             }
-            var shared = current.Where(kv => kv.Key != def.Name && kv.Value != null && kv.Value.SameInput(b)).Select(kv => kv.Key).ToList();
+            var shared = current.Where(kv => kv.Key != def.Name && kv.Value != null && kv.Value.Any(x => x.SameInput(b))).Select(kv => kv.Key).ToList();
             if (shared.Count > 0) SetCell(sc, string.Join(", ", shared), Theme.Warn);
+            if (slot == 0 && features.Lists && !Unsupported(def))
+            {
+                SetCell(ac, "+ Add", Theme.Dim);
+                ac.ToolTipText = "Bind another input to " + def.Name + " as well";
+            }
             SetCell(cc, "Clear", Theme.Dim);
-            cc.ToolTipText = "Unbind (Delete)";
+            cc.ToolTipText = list.Count > 1 ? "Remove this input (Delete)" : "Unbind (Delete)";
         }
 
         static void SetCell(DataGridViewCell c, string text, Color color)
@@ -1484,38 +1734,58 @@ namespace AC8HotasBinder
             if (e.RowIndex < 0) return;
             var r = grid.Rows[e.RowIndex];
             if (r == optionalHeader) { ToggleOptional(); return; }
-            var def = r.Tag as ActionDef;
-            if (def == null) return;
+            var rr = r.Tag as RowRef;
+            if (rr == null) return;
+            var def = rr.Def;
 
             if (listening == def) { StopListening(); Banner("Cancelled.", BannerKind.Info); return; }
-            Binding b; current.TryGetValue(def.Name, out b);
-            if (e.ColumnIndex == ColClear && b != null && listening == null) { Clear(def); return; }
-            if (e.ColumnIndex == ColDirection && def.IsAxis && b != null && listening == null)
+            var list = Inputs(def.Name);
+            Binding b = list != null && rr.Slot < list.Count ? list[rr.Slot] : null;
+            if (e.ColumnIndex == ColClear && b != null && listening == null) { Clear(def, rr.Slot); return; }
+            if (e.ColumnIndex == ColAdd && rr.Slot == 0 && b != null && features.Lists && !Unsupported(def))
             {
-                current[def.Name] = new Binding { Device = b.Device, Input = b.Input, Invert = !b.Invert, Mode = b.Mode };
-                RefreshAll();
-                Banner(def.Name + " direction " + (b.Invert ? "set to normal." : "inverted."), BannerKind.Info);
+                StartListening(def, list.Count);
                 return;
             }
-            StartListening(def);
+            if (e.ColumnIndex == ColDirection && def.IsAxis && b != null && listening == null)
+            {
+                var l = new List<Binding>(list);
+                l[rr.Slot] = new Binding { Device = b.Device, Input = b.Input, Invert = !b.Invert, Mode = b.Mode };
+                current[def.Name] = l;
+                RefreshAll();
+                Banner(def.Name + (l.Count > 1 ? " input " + (rr.Slot + 1) : "") + " direction " + (b.Invert ? "set to normal." : "inverted."), BannerKind.Info);
+                return;
+            }
+            StartListening(def, rr.Slot);
         }
 
-        void Clear(ActionDef def)
+        // Removes one input; the ones below it move up a slot.
+        void Clear(ActionDef def, int slot)
         {
             if (disk.Locked.ContainsKey(def.Name)) return;
-            current[def.Name] = null;
+            var list = Inputs(def.Name);
+            if (list == null || slot >= list.Count) return;
+            var l = new List<Binding>(list);
+            l.RemoveAt(slot);
+            current[def.Name] = l.Count == 0 ? null : l;
             RefreshAll();
-            Banner(def.Name + " unbound.", BannerKind.Info);
+            Banner(l.Count == 0 ? def.Name + " unbound." : "Removed input " + (slot + 1) + " from " + def.Name + ".", BannerKind.Info);
         }
 
         // ---------------------------------------------------------------- listening
 
-        void StartListening(ActionDef def)
+        // slot: the input to replace, or the input count to add one more.
+        void StartListening(ActionDef def, int slot)
         {
             string locked;
             if (disk.Locked.TryGetValue(def.Name, out locked))
             {
-                Banner(def.Name + " was " + locked + "; edit it in bindings.lua directly.", BannerKind.Warn);
+                Banner(def.Name + " is edited by hand (" + locked + "); edit it in bindings.lua directly.", BannerKind.Warn);
+                return;
+            }
+            if (Unsupported(def))
+            {
+                Banner(def.Name + " needs AC8HOTAS 0.3.2 or newer. Your installed version would reject bindings.lua with it bound.", BannerKind.Warn);
                 return;
             }
             if (catalog.Count == 0)
@@ -1523,14 +1793,38 @@ namespace AC8HotasBinder
                 Banner("The game hasn't listed any controllers yet. Launch the game once with AC8HOTAS and your controllers plugged in, quit, then click Rescan devices.", BannerKind.Warn);
                 return;
             }
+            int n = InputCount(def.Name);
+            slot = Math.Min(slot, n);
+            bool adding = n > 0 && slot == n;
+            if (adding && !features.Lists) return;
             listening = def;
+            listenSlot = slot;
             baseline.Clear();
             ignoredAxes.Clear();
             foreach (var d in hid.Devices) baseline[d] = d.Snapshot();
+            // The action's other inputs can't be picked again, so a head tracker already bound to
+            // this action can't win while you move a second axis. Other axes it drives still can.
+            foreach (var d in hid.Devices)
+            {
+                var c = Match(d);
+                if (c == null) continue;
+                for (int i = 0; i < d.Axes.Count; i++)
+                    if (IsOtherInput(c.Id, d.Axes[i].Token)) ignoredAxes.Add(d.Path + "|" + i);
+            }
             InputEvent stale;
             while (hid.Events.TryDequeue(out stale)) { }
             RefreshAll();
-            Banner(def.Name.ToUpperInvariant() + "  —  " + (def.IsAxis ? def.Prompt : "press a button or hat direction") + "        Esc to cancel", BannerKind.Listen);
+            Banner((adding ? "ADD TO " : "") + def.Name.ToUpperInvariant() + "  —  " + (def.IsAxis ? def.Prompt : "press a button or hat direction") + "        Esc to cancel", BannerKind.Listen);
+        }
+
+        // True if the action being listened for already has this input in another slot.
+        bool IsOtherInput(string device, string token)
+        {
+            var list = listening == null ? null : Inputs(listening.Name);
+            if (list == null) return false;
+            for (int i = 0; i < list.Count; i++)
+                if (i != listenSlot && string.Equals(list[i].Device, device, StringComparison.OrdinalIgnoreCase) && list[i].Input == token) return true;
+            return false;
         }
 
         void StopListening()
@@ -1553,7 +1847,8 @@ namespace AC8HotasBinder
                 if (duplicateProducts.Contains(c.Product)) { DuplicateModel(c); continue; }
                 string why;
                 if (!c.Accepts(ev.Token, false, out why)) { Banner(why, BannerKind.Warn); continue; }
-                Assign(listening, new Binding { Device = c.Id, Input = ev.Token });
+                if (IsOtherInput(c.Id, ev.Token)) { Banner(InputLabel(ev.Token) + " is already one of " + listening.Name + "'s inputs. Press a different one, or Esc to cancel.", BannerKind.Warn); continue; }
+                Assign(listening, listenSlot, new Binding { Device = c.Id, Input = ev.Token });
                 return;
             }
 
@@ -1581,8 +1876,9 @@ namespace AC8HotasBinder
             if (cat == null) { NotInCatalog(bestDev); ignoredAxes.Add(bestDev.Path + "|" + bestAxis); return; }
             if (duplicateProducts.Contains(cat.Product)) { DuplicateModel(cat); ignoredAxes.Add(bestDev.Path + "|" + bestAxis); return; }
             if (!cat.Accepts(token, true, out reason)) { Banner(reason, BannerKind.Warn); ignoredAxes.Add(bestDev.Path + "|" + bestAxis); return; }
-            Binding old; current.TryGetValue(listening.Name, out old);
-            Assign(listening, new Binding
+            var list = Inputs(listening.Name);
+            Binding old = list != null && listenSlot < list.Count ? list[listenSlot] : null;
+            Assign(listening, listenSlot, new Binding
             {
                 Device = cat.Id, Input = token, Invert = listening.InvertFor(bestDelta),
                 Mode = old != null && Regex.IsMatch(old.Input, "^(X|Y|Z|Rx|Ry|Rz|Slider[12])$") ? old.Mode : null
@@ -1599,18 +1895,26 @@ namespace AC8HotasBinder
             Banner("Two connected controllers are the same model (" + Short(c.Name) + "). AC8HOTAS can't tell them apart, so they can't be bound.", BannerKind.Warn);
         }
 
-        void Assign(ActionDef def, Binding b)
+        void Assign(ActionDef def, int slot, Binding b)
         {
-            current[def.Name] = b;
+            var list = Inputs(def.Name) == null ? new List<Binding>() : new List<Binding>(Inputs(def.Name));
+            if (slot >= list.Count) { slot = list.Count; list.Add(b); }
+            else list[slot] = b;
+            current[def.Name] = list;
             listening = null;
-            flashRow = rows[def.Name];
+            SyncExtraRows(def);
+            flashRow = RowFor(def, slot);
             flashUntil = DateTime.Now.AddMilliseconds(900);
             RefreshAll();
-            string msg = def.Name + "  →  " + (DeviceLabel(b.Device) ?? b.Device) + "  ·  " + InputLabel(b.Input);
+            string msg = def.Name + (list.Count > 1 ? " input " + (slot + 1) : "") + "  →  " + (DeviceLabel(b.Device) ?? b.Device) + "  ·  " + InputLabel(b.Input);
             if (def.IsAxis) msg += b.Invert ? "  (inverted)" : "";
-            var shared = current.Where(kv => kv.Key != def.Name && kv.Value != null && kv.Value.SameInput(b)).Select(kv => kv.Key).ToList();
+            var shared = current.Where(kv => kv.Key != def.Name && kv.Value != null && kv.Value.Any(x => x.SameInput(b))).Select(kv => kv.Key).ToList();
             if (shared.Count > 0) msg += "    also used by " + string.Join(", ", shared);
-            Banner(msg, BannerKind.Good);
+            // Inputs on one device share that device's game profile, which has a limited number
+            // of slots per action. The binder can't see the limit; AC8HOTAS rejects the file if it's exceeded.
+            bool sameDevice = list.Where((x, i) => i != slot && string.Equals(x.Device, b.Device, StringComparison.OrdinalIgnoreCase)).Any();
+            if (sameDevice) msg += "    Same device twice: if AC8HOTAS then rejects your bindings, the game has too few slots for this.";
+            Banner(msg, sameDevice ? BannerKind.Warn : BannerKind.Good);
         }
 
         // ---------------------------------------------------------------- save / revert
@@ -1632,8 +1936,8 @@ namespace AC8HotasBinder
                 var check = BindingsDoc.Parse(updated);
                 foreach (var n in dirty)
                 {
-                    Binding got; check.Bindings.TryGetValue(n, out got);
-                    if (check.Locked.ContainsKey(n) || !Binding.Same(got, current[n]))
+                    List<Binding> got; check.Bindings.TryGetValue(n, out got);
+                    if (check.Locked.ContainsKey(n) || !Binding.SameList(got, current[n]))
                         throw new InvalidOperationException("Verification failed for " + n + "; nothing was written.");
                 }
                 File.Copy(bindingsPath, bindingsPath + ".binder.bak", true);
@@ -1661,7 +1965,7 @@ namespace AC8HotasBinder
                     MessageBoxButtons.OKCancel, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.OK) return;
             foreach (var n in DirtyNames())
             {
-                Binding d; disk.Bindings.TryGetValue(n, out d);
+                List<Binding> d; disk.Bindings.TryGetValue(n, out d);
                 current[n] = d;
             }
             RefreshAll();
@@ -1689,14 +1993,14 @@ namespace AC8HotasBinder
         {
             if (keyData == Keys.Escape && listening != null) { StopListening(); Banner("Cancelled.", BannerKind.Info); return true; }
             if (keyData == (Keys.Control | Keys.S)) { Save(); return true; }
-            var def = grid.CurrentRow != null ? grid.CurrentRow.Tag as ActionDef : null;
+            var rr = grid.CurrentRow != null ? grid.CurrentRow.Tag as RowRef : null;
             if (keyData == Keys.Enter && grid.Focused)
             {
                 if (grid.CurrentRow == optionalHeader) ToggleOptional();
-                else if (def != null) { if (listening == def) StopListening(); else StartListening(def); }
+                else if (rr != null) { if (listening == rr.Def) StopListening(); else StartListening(rr.Def, rr.Slot); }
                 return true;
             }
-            if (keyData == Keys.Delete && grid.Focused && def != null && listening == null) { Clear(def); return true; }
+            if (keyData == Keys.Delete && grid.Focused && rr != null && listening == null) { Clear(rr.Def, rr.Slot); return true; }
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
@@ -1788,6 +2092,7 @@ namespace AC8HotasBinder
             Bullet("Buttons: ", "press the button or hat direction you want.");
             Bullet("Axes: ", "follow the prompt, e.g. push the stick FORWARD. The way you move it sets Normal or Inverted.");
             Bullet("Esc ", "cancels. Clear (or Delete) unbinds. Click an axis's Direction to flip it.");
+            Bullet("+ Add ", "binds another input to the same action, e.g. a head tracker and a throttle mini-stick both on the camera. Each input gets its own row with its own Direction and Clear. Pause head tracking while you bind a stick, so a head movement isn't picked up instead.");
             Step("3.", "Click Save bindings (Ctrl+S).");
             Step("4.", "Launch the game and test your controls. If something feels off, quit, adjust it here, save and launch again.");
 
@@ -1798,6 +2103,8 @@ namespace AC8HotasBinder
             Heading("Good to know");
             Bullet(null, "The KB / Mouse and Controller columns show the game's own default controls (Expert mode), so you can see what each action does before giving it a HOTAS control. Hover a cell for the in-game name.");
             Bullet(null, "One control can drive several actions, e.g. the same hat for Look and the menu D-pad. The \"Also used by\" column shows sharing.");
+            Bullet(null, "Several inputs per action (+ Add) and the SelectMissiles / SelectSpecialWeapon rows need AC8HOTAS 0.3.2 or newer. With an older AC8HOTAS they're hidden or greyed out, because it would reject the whole bindings.lua.");
+            Bullet(null, "Inputs on different devices are the safe way to add more. Several inputs on the same device can need more slots than the game has for that action; AC8HOTAS then rejects the file, and its HOTAS-*.log says which action.");
             Bullet(null, "Buttons already held down when you start listening are ignored, so switches resting \"on\" won't hijack a binding.");
             Bullet(null, "Drag the grips between column headers to resize columns.");
             Bullet(null, "Every save backs up the previous file to bindings.lua.binder.bak.");
@@ -1900,29 +2207,34 @@ namespace AC8HotasBinder
                     log.AppendLine(string.Format("  {0} {1} '{2}' axes={3} buttons={4} povs={5} inputs={6}", c.Id, c.Product, c.Name, c.Axes, c.Buttons, c.Povs, c.Inputs.Count));
 
                 var doc = BindingsDoc.Parse(text);
+                Func<ActionDef, List<Binding>, string> show = (a, l) => l == null ? "nil" : string.Join("  +  ", l.Select(x => x.ToLua(a.IsAxis)));
                 log.AppendLine("Bindings:");
                 foreach (var a in ActionDef.All)
                 {
-                    Binding b; string why;
+                    List<Binding> b; string why;
                     if (doc.Locked.TryGetValue(a.Name, out why)) log.AppendLine("  " + a.Name + " LOCKED " + why);
-                    else if (doc.Bindings.TryGetValue(a.Name, out b)) log.AppendLine("  " + a.Name + " = " + (b == null ? "nil" : b.ToLua(a.IsAxis)));
+                    else if (doc.Bindings.TryGetValue(a.Name, out b)) log.AppendLine("  " + a.Name + " = " + show(a, b));
                     else log.AppendLine("  " + a.Name + " (missing)");
                 }
-                check(ActionDef.All.Count == 49, "49 actions defined");
-                check(ActionDef.All.Count(x => x.Keys != null) == 26 && ActionDef.All.Count(x => x.Pad != null) == 27, "game defaults loaded (26 keyboard, 27 controller)");
+                var feat = ModFeatures.Detect(dir);
+                log.AppendLine("AC8HOTAS here: several inputs per action " + (feat.Lists ? "yes" : "no") + ", direct weapon select " + (feat.WeaponSelect ? "yes" : "no"));
+                check(ActionDef.All.Count == 52, "52 actions defined");
+                check(ActionDef.All.Count(x => x.Keys != null) == 29 && ActionDef.All.Count(x => x.Pad != null) == 27, "game defaults loaded (29 keyboard, 27 controller)");
 
-                check(BindingsDoc.Apply(text, new Dictionary<string, Binding>(), b => "x") == text, "no-op apply preserves file exactly");
+                check(BindingsDoc.Apply(text, new Dictionary<string, List<Binding>>(), b => "x") == text, "no-op apply preserves file exactly");
 
+                Func<Binding[], List<Binding>> L = xs => new List<Binding>(xs);
+                Func<BindingsDoc, string, List<Binding>> get = (d, n) => { List<Binding> x; d.Bindings.TryGetValue(n, out x); return x; };
+                Func<string, string[]> split = t => t.Replace("\r\n", "\n").Split('\n');
                 var gun = new Binding { Device = "{TEST}", Input = "Button99" };
                 var pitch = new Binding { Device = "{TEST}", Input = "Ry", Invert = true, Mode = "zero_to_one" };
-                var changed = BindingsDoc.Apply(text, new Dictionary<string, Binding> { { "Gun", gun }, { "Pitch", pitch }, { "Flare", null } }, b => "Test device");
+                var changed = BindingsDoc.Apply(text, new Dictionary<string, List<Binding>> { { "Gun", L(new[] { gun }) }, { "Pitch", L(new[] { pitch }) }, { "Flare", null } }, b => "Test device");
                 var re = BindingsDoc.Parse(changed);
-                Func<BindingsDoc, string, Binding> get = (d, n) => { Binding x; d.Bindings.TryGetValue(n, out x); return x; };
-                check(Binding.Same(get(re, "Gun"), gun), "button binding round-trips");
-                check(Binding.Same(get(re, "Pitch"), pitch), "axis binding with invert+mode round-trips");
+                check(Binding.SameList(get(re, "Gun"), L(new[] { gun })), "button binding round-trips");
+                check(Binding.SameList(get(re, "Pitch"), L(new[] { pitch })), "axis binding with invert+mode round-trips");
                 check(re.Bindings.ContainsKey("Flare") && re.Bindings["Flare"] == null, "clearing writes nil");
                 int diff = 0;
-                var a1 = text.Replace("\r\n", "\n").Split('\n'); var a2 = changed.Replace("\r\n", "\n").Split('\n');
+                var a1 = split(text); var a2 = split(changed);
                 check(a1.Length == a2.Length, "line count unchanged");
                 for (int i = 0; i < Math.Min(a1.Length, a2.Length); i++) if (a1[i] != a2[i]) diff++;
                 check(diff <= 3, "only the edited lines changed (" + diff + ")");
@@ -1930,8 +2242,90 @@ namespace AC8HotasBinder
                 check(tail < 0 || changed.EndsWith(text.Substring(tail)), "detected-devices section untouched");
 
                 var noGun = Regex.Replace(text, @"^[ \t]*Gun[ \t]*=.*\r?\n", "", RegexOptions.Multiline);
-                var inserted = BindingsDoc.Parse(BindingsDoc.Apply(noGun, new Dictionary<string, Binding> { { "Gun", gun } }, b => "Test"));
-                check(Binding.Same(get(inserted, "Gun"), gun), "missing action gets inserted into bindings table");
+                var inserted = BindingsDoc.Parse(BindingsDoc.Apply(noGun, new Dictionary<string, List<Binding>> { { "Gun", L(new[] { gun }) } }, b => "Test"));
+                check(Binding.SameList(get(inserted, "Gun"), L(new[] { gun })), "missing action gets inserted into bindings table");
+
+                // Several inputs per action (AC8HOTAS 0.3.2+), on a sample in the mod's documented
+                // format plus the other shapes a hand-edited file can take.
+                string sample = string.Join("\n", new[]
+                {
+                    "return {",
+                    "    version = 1,",
+                    "    bindings = {",
+                    "        Target = {",
+                    "            { device = \"{AAAA-1}\", input = \"Button1\" }, -- Stick {left}",
+                    "            { device = \"{BBBB-2}\", input = \"Button2\" },",
+                    "        }, -- two buttons",
+                    "        Gun = { { device = \"{AAAA-1}\", input = \"Button3\" } },",
+                    "        CameraYaw = { { device = \"{AAAA-1}\", input = \"Rx\", invert = false }, { device = \"{BBBB-2}\", input = \"Rx\", invert = true, mode = \"zero_to_one\" } },",
+                    "        Missile = nil, -- a -- comment { with a brace",
+                    "        View = {",
+                    "            device = \"{AAAA-1}\",",
+                    "            input = \"Button5\",",
+                    "        },",
+                    "        Flare = {},",
+                    "        Radar = { device = \"{AAAA-1}\" },",
+                    "        Gear = { { device = \"{AAAA-1}\", input = \"Button6\" }, nil },",
+                    "        Pause = nil, Platform = nil,",
+                    "    },",
+                    "}",
+                    "",
+                    BindingsDoc.Marker + " (generated; edit bindings above)",
+                    "-- { device = \"{AAAA-1}\", input = \"X\", invert = false },",
+                    "-- END DETECTED DEVICES",
+                    ""
+                });
+                var s = BindingsDoc.Parse(sample);
+                var t1 = get(s, "Target");
+                check(t1 != null && t1.Count == 2 && t1[0].Device == "{AAAA-1}" && t1[0].Input == "Button1" && t1[1].Device == "{BBBB-2}" && t1[1].Input == "Button2",
+                    "multi-line list in the mod's format parses");
+                var g1 = get(s, "Gun");
+                check(g1 != null && g1.Count == 1 && g1[0].Input == "Button3", "one-element list parses");
+                var c1 = get(s, "CameraYaw");
+                check(c1 != null && c1.Count == 2 && !c1[0].Invert && c1[1].Invert && c1[1].Mode == "zero_to_one", "one-line list of axes parses");
+                check(s.Bindings.ContainsKey("Missile") && s.Bindings["Missile"] == null, "nil with a brace in its comment parses");
+                var v1 = get(s, "View");
+                check(v1 != null && v1.Count == 1 && v1[0].Input == "Button5", "single input written over several lines parses");
+                check(s.Locked.ContainsKey("Flare") && s.Locked.ContainsKey("Radar") && s.Locked.ContainsKey("Gear") && s.Locked.ContainsKey("Pause"),
+                    "empty list, incomplete input, nil in a list and two actions on one line stay locked");
+
+                var x1 = new Binding { Device = "{CCCC-3}", Input = "Button7" };
+                var x2 = new Binding { Device = "{DDDD-4}", Input = "POV1_Up" };
+                var grown = BindingsDoc.Apply(sample, new Dictionary<string, List<Binding>> { { "Missile", L(new[] { x1, x2 }) } }, b => "Dev {x}");
+                var sg = BindingsDoc.Parse(grown);
+                check(Binding.SameList(get(sg, "Missile"), L(new[] { x1, x2 })), "writing a list round-trips");
+                var b1 = split(sample); var b2 = split(grown);
+                int at = Array.FindIndex(b1, l => l.TrimStart().StartsWith("Missile"));
+                bool untouched = b2.Length == b1.Length + 3;
+                for (int i = 0; i < at && untouched; i++) untouched = b1[i] == b2[i];
+                for (int i = at + 1; i < b1.Length && untouched; i++) untouched = b1[i] == b2[i + 3];
+                check(untouched, "a list replaces only its own lines");
+                check(Binding.SameList(get(sg, "Target"), t1) && Binding.SameList(get(sg, "CameraYaw"), c1) && sg.Locked.Count == s.Locked.Count,
+                    "other entries unchanged after writing a list");
+
+                var axes = L(new[] { new Binding { Device = "{AAAA-1}", Input = "Rx" }, new Binding { Device = "{BBBB-2}", Input = "X", Invert = true, Mode = "minus_one_to_one" } });
+                check(Binding.SameList(get(BindingsDoc.Parse(BindingsDoc.Apply(sample, new Dictionary<string, List<Binding>> { { "CameraPitch", axes } }, b => "x")), "CameraPitch"), axes),
+                    "list of axes inserted for a missing action round-trips");
+
+                var shrunk = BindingsDoc.Apply(sample, new Dictionary<string, List<Binding>> { { "Target", L(new[] { t1[1] }) } }, b => "x");
+                var ss = BindingsDoc.Parse(shrunk);
+                check(Binding.SameList(get(ss, "Target"), L(new[] { t1[1] })) && split(shrunk).Length == b1.Length - 3, "list shrinks back to one line");
+                var cleared = BindingsDoc.Apply(sample, new Dictionary<string, List<Binding>> { { "Target", null } }, b => "x");
+                check(BindingsDoc.Parse(cleared).Bindings.ContainsKey("Target") && BindingsDoc.Parse(cleared).Bindings["Target"] == null && Regex.IsMatch(cleared, @"^[ \t]*Target = nil,$", RegexOptions.Multiline),
+                    "clearing a list writes nil, not an empty list");
+                check(grown.EndsWith(sample.Substring(sample.IndexOf(BindingsDoc.Marker))), "detected-devices section untouched by lists");
+
+                string tmp = Path.Combine(Path.GetTempPath(), "ac8-binder-selftest-" + Guid.NewGuid().ToString("N"));
+                try
+                {
+                    Directory.CreateDirectory(Path.Combine(tmp, "Scripts"));
+                    var none = ModFeatures.Detect(tmp);
+                    File.WriteAllText(Path.Combine(tmp, "Scripts", "mapper.lua"), "assert(#bindings>0,'Binding list must not be empty: '..action)");
+                    File.WriteAllText(Path.Combine(tmp, "Scripts", "weapon_select.lua"), "");
+                    var both = ModFeatures.Detect(tmp);
+                    check(!none.Lists && !none.WeaponSelect && both.Lists && both.WeaponSelect, "AC8HOTAS feature detection");
+                }
+                finally { try { Directory.Delete(tmp, true); } catch { } }
 
                 log.AppendLine("HID devices:");
                 var q = new ConcurrentQueue<InputEvent>();

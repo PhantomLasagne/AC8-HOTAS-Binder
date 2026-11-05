@@ -14,6 +14,8 @@ AC8HOTAS is configured by editing `bindings.lua` by hand: device GUIDs, button n
 
 - **Click an action, press the control.** Buttons, hat directions and axes are detected live.
 - **Guided axes.** "Push the stick FORWARD", "Throttle IDLE to FULL"... The way you move it sets Normal/Inverted automatically.
+- **Several inputs per action.** Click **+ Add** to put, say, a head tracker and a throttle mini-stick on the same camera axis, or two buttons on Target (needs AC8HOTAS 0.3.2 or newer).
+- **Direct weapon select.** SelectMissiles / SelectSpecialWeapon1 / SelectSpecialWeapon2 (AC8HOTAS 0.3.2 or newer).
 - **See the game's own controls.** Each action shows its default keyboard/mouse and controller binding (Expert mode), so you know what it does before you give it a HOTAS control.
 - **Safe edits.** Only the lines you change are rewritten. Comments and AC8HOTAS's generated device list are untouched, and every save keeps a backup (`bindings.lua.binder.bak`).
 - **Always know what's saved.** Unsaved changes are marked on each row and counted on the Save button.
@@ -26,7 +28,7 @@ AC8HOTAS is configured by editing `bindings.lua` by hand: device GUIDs, button n
 
 ## Install and use
 
-Requires [AC8 HOTAS Support](https://www.nexusmods.com/acecombat8wingsoftheve/mods/8) 0.2.0 and Windows 10/11. Nothing else is needed, since .NET Framework 4 ships with Windows.
+Requires [AC8 HOTAS Support](https://www.nexusmods.com/acecombat8wingsoftheve/mods/8) 0.2.0 or newer and Windows 10/11. Several inputs per action and direct weapon select need 0.3.2 or newer; with an older version the binder hides them, because that version would reject the whole file. Nothing else is needed, since .NET Framework 4 ships with Windows.
 
 1. Install AC8 HOTAS Support, launch the game once with your controllers plugged in, then quit.
 2. Download the zip from [Nexus Mods](https://www.nexusmods.com/acecombat8wingsoftheve/mods/53) or [Releases](../../releases). Extract the `AC8-HOTAS-Binder` folder into `...\UE4SS\Mods\AC8HOTAS\`.
@@ -37,7 +39,7 @@ Full user documentation: [README.txt](README.txt), which is also included in the
 
 ### Head tracking
 
-The camera axes work with [opentrack](https://github.com/opentrack/opentrack) through a [vJoy](https://github.com/BrunnerInnovation/vJoy) virtual joystick: bind *Camera left / right* and *Camera up / down* to vJoy's Rx and Ry by turning your head. With vJoy 2.2, replace opentrack's bundled `vJoyInterface.dll` with vJoy's own, or the axes won't move. Step-by-step setup is in [README.txt](README.txt) under "Head tracking".
+The camera axes work with [opentrack](https://github.com/opentrack/opentrack) through a [vJoy](https://github.com/BrunnerInnovation/vJoy) virtual joystick: bind *Camera left / right* and *Camera up / down* to vJoy's Rx and Ry by turning your head. With vJoy 2.2, replace opentrack's bundled `vJoyInterface.dll` with vJoy's own, or the axes won't move. With AC8HOTAS 0.3.2 or newer you can keep a stick on the camera too (**+ Add**); how the game mixes two camera axes at once is untested. Step-by-step setup is in [README.txt](README.txt) under "Head tracking".
 
 ## Building
 
@@ -62,7 +64,8 @@ The self-test (`AC8-HOTAS-Binder.exe --selftest "<AC8HOTAS folder>" "<report.txt
 
 - **Input:** reads controllers directly through the Windows HID API (`hid.dll`, read-only). It maps HID usages to the DirectInput names AC8HOTAS uses (`Button1..128`, `X/Y/Z/Rx/Ry/Rz/Slider1/Slider2`, `POV1_*`).
 - **Devices:** matches controllers to the game's device GUIDs by product ID, using the catalog AC8HOTAS writes to `Scripts/devices.lua`.
-- **Editing:** edits `bindings.lua` line by line instead of regenerating it, then re-parses the result before writing.
+- **Editing:** edits `bindings.lua` entry by entry instead of regenerating it, then re-parses the result before writing. One input stays on one line; two or more use AC8HOTAS's multi-line list format.
+- **Compatibility:** checks the installed AC8HOTAS for each feature (`Scripts/mapper.lua` list support, `Scripts/weapon_select.lua`) rather than trusting a version number.
 
 ## Credits
 
