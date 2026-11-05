@@ -22,9 +22,9 @@ AC8HOTAS is configured by editing `bindings.lua` by hand: device GUIDs, button n
 - **Any HID game controller.** Several devices at once. Developed and tested on VKB gear (Gladiator EVO R, S-TECS throttle, T-Rudder).
 - **Read-only on your hardware.** It never changes controller settings or sends input to the game.
 
-| Binding an axis | Unsaved changes | Built-in help |
-|---|---|---|
-| ![Binding an axis](docs/images/02-binding-an-axis.png) | ![Unsaved changes](docs/images/03-unsaved-changes.png) | ![How it works](docs/images/04-how-it-works.png) |
+| Several inputs per action | Binding an axis | Unsaved changes | Built-in help |
+|---|---|---|---|
+| ![Head tracking and a throttle mini-stick on the same camera axis](docs/images/05-several-inputs.png) | ![Binding an axis](docs/images/02-binding-an-axis.png) | ![Unsaved changes](docs/images/03-unsaved-changes.png) | ![How it works](docs/images/04-how-it-works.png) |
 
 ## Install and use
 
