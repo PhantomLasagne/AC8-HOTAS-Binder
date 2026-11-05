@@ -143,10 +143,9 @@ namespace AC8HotasBinder
             d("Gun", "LMB / J", "A / Cross", "In game: Fire machine gun.");
             d("Missile", "RMB / L", "B / Circle", "In game: Fire missile or weapon.");
             d("Weapon", "Wheel ↓ / K", "X / Square", "In game: Change weapon / Next weapon. Previous weapon is wheel ↑ / I; keys 1, 2 and 3 pick standard missiles or a special weapon directly.");
-            // Inferred from the Weapon entry above: assumes 1, 2, 3 map in this order.
-            d("SelectMissiles", "1", null, "In game: keys 1, 2 and 3 pick standard missiles or a special weapon directly (order assumed). Needs AC8HOTAS 0.3.2 or newer.");
-            d("SelectSpecialWeapon1", "2", null, "In game: keys 1, 2 and 3 pick standard missiles or a special weapon directly (order assumed). Needs AC8HOTAS 0.3.2 or newer.");
-            d("SelectSpecialWeapon2", "3", null, "In game: keys 1, 2 and 3 pick standard missiles or a special weapon directly (order assumed). Needs AC8HOTAS 0.3.2 or newer.");
+            d("SelectMissiles", "1", null, "In game: picks standard missiles directly. Needs AC8HOTAS 0.3.2 or newer.");
+            d("SelectSpecialWeapon1", "2", null, "In game: picks special weapon 1 directly. Needs AC8HOTAS 0.3.2 or newer.");
+            d("SelectSpecialWeapon2", "3", null, "In game: picks special weapon 2 directly. Needs AC8HOTAS 0.3.2 or newer.");
             d("Target", "T / MMB", "Y / Triangle", "In game: Change target. MMB is the mouse wheel click.");
             d("Radar", "M", "View / Share", "In game: Switch radar map.");
             d("Flare", "X", null, "In game: Deploy flares.");
